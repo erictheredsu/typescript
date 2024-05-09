@@ -26,6 +26,8 @@ db.serialize(function(){
     db.close();
 });
 
+//async example don't success, need rework
+
 // // eslint-disable-next-line @typescript-eslint/no-explicit-any
 // async function execute(sql:string, param?:any[]):Promise<any>{
 //     console.log(`execture sql: $1`, sql );
