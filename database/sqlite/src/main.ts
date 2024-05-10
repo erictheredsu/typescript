@@ -1,4 +1,5 @@
 import * as sqlite from "sqlite3";
+import * as util from "util";
 
 //see https://github.com/TryGhost/node-sqlite3/wiki/API for sqlite API
 
@@ -6,68 +7,82 @@ const sqlite3: sqlite.sqlite3 = sqlite.verbose();
 const db:sqlite.Database = new sqlite3.Database(':memory:');
 
 
-db.serialize(function(){
-    db.run('CREATE TABLE user (name TEXT)');
+// version 1: db.serialize run with order
+// db.serialize(function(){
+//     db.run('CREATE TABLE user (name TEXT)');
 
-    const stmt = db.prepare("INSERT INTO user(name) VALUES (?)");
-    const name:string[] = ['Alice', 'Eric', 'Alvin'];
+//     const stmt = db.prepare("INSERT INTO user(name) VALUES (?)");
+//     const name:string[] = ['Alice', 'Eric', 'Alvin'];
 
-    for(let i=0; i< name.length;i++){
-        stmt.run(name[i]);
-    }
+//     for(let i=0; i< name.length;i++){
+//         stmt.run(name[i]);
+//     }
 
-    stmt.finalize();
+//     stmt.finalize();
 
-    db.each('SELECT * FROM user', function(err, row){
-        console.log(row);
-    })
-
-
-    db.close();
-});
-
-//async example don't success, need rework
-
-// // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// async function execute(sql:string, param?:any[]):Promise<any>{
-//     console.log(`execture sql: $1`, sql );
-
-//     await db.run
-//     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-//     const promise:Promise<any> = new Promise<any>((resolve, reject)=>{
-//         this.db.run(sql, param, (err:Error, result:sqlite.RunResult) =>{
-//             if(err){
-//                 console.error(err);
-//                 reject(err);
-//             }
-//             console.log(result);
-//             resolve(result);
-//         });
-//     });
-//     return promise
-// }
-
-
-// async function test(){
-//     await execute('CREATE TABLE user (name TEXT)');
-
-//     await execute( "INSERT INTO user(name) VALUES (?)", ['Alice']);
-
-//     await execute("INSERT INTO user(name) VALUES (?)", ['Eric']);
-
-//     //await execute('SELECT * FROM user');
-
-//     // await db.run('UPDATE user SET name = ? WHERE name = ?', ['Alvin','Alice'], function(err){
-//     //     if(err){
-//     //         return console.log(err);
-//     //     }
-//     // })
-
-//     await db.close(function (err){
-//         if(err){
-//             return console.log(err);
-//         }
+//     db.each('SELECT * FROM user', function(err, row){
+//         console.log(row);
 //     })
 
-// }
+
+//     db.close();
+// });
+
+//version 2: async 
+//don't know why util.promisify doesn't work
+//const db_run = util.promisify(db.run);
+//const db_prepare = util.promisify(db.prepare);
+//const db_each = util.promisify(db.each);
+
+async function executeQuery(db:sqlite.Database, sql:string, params?:any[]):Promise<any>{
+    console.log(`executeQuery:${sql}`);
+    return new Promise((resolve, reject)=>{
+        db.all(sql,params, function(err:Error, rows:any[]){
+            if(err){
+                reject(err);
+            }
+            else{
+                resolve(rows);
+            }
+        });
+    });
+}
+
+async function executeNonQuery(db:sqlite.Database, sql:string, params?:any[]):Promise<void>{
+    console.log(`executeNoQuery:${sql}`);
+    return new Promise((resolve, reject)=>{
+        db.run(sql, params, function(err:Error){
+            if(err){
+                reject(err);
+            }else{
+                resolve();
+            }
+        });
+    });
+}
+
+
+async function test(){
+
+    try {
+        await executeNonQuery(db,'CREATE TABLE user (name TEXT)');
+        
+        const insert_sql = "INSERT INTO user(name) VALUES ";
+        const name:string[] = ['Alice', 'Eric', 'Alvin'];
+        for(let i:number=0;i<name.length;i++){
+            const tmpQuery = `${insert_sql} (\'${name[i]}\') `;
+            await executeNonQuery(db,tmpQuery);
+        }
+
+        const rows = await executeQuery(db, 'SELECT * FROM user');
+        console.log(rows);
+
+    } catch (error) {
+        console.log(error)
+    }
+
+    db.close();
+}
+
+test();
 
